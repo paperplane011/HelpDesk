@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+.local/
+TestResults/
+.env
+.env.*
+!.env.example
+*.user
+*.suo
+*.db
+*.db-shm
+*.db-wal
+tmp/
+**/__pycache__/
+secrets.json

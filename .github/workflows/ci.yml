@@ -1,0 +1,63 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore HelpDesk.sln --locked-mode
+      - run: dotnet build HelpDesk.sln -c Release --no-restore
+      - run: dotnet tool restore
+      - run: dotnet ef migrations has-pending-model-changes --project src/HelpDesk.Api --configuration Release --no-build
+      - run: dotnet test --solution HelpDesk.sln -c Release --no-build --results-directory TestResults -- --report-trx
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sqlite-test-results
+          path: TestResults
+      - run: docker build -t helpdesk-api:ci .
+  sqlserver-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Start SQL Server with an ephemeral password
+        shell: bash
+        run: |
+          password="Aa1!$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          echo "HELPDESK_TEST_SQLSERVER=Server=localhost,1433;User Id=sa;Password=$password;Encrypt=True;TrustServerCertificate=True" >> "$GITHUB_ENV"
+          docker run -d --name helpdesk-sql -e ACCEPT_EULA=Y -e MSSQL_PID=Developer -e MSSQL_SA_PASSWORD="$password" -p 127.0.0.1:1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in {1..60}; do
+            if docker exec helpdesk-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -b -Q 'SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs helpdesk-sql
+          exit 1
+      - run: dotnet restore HelpDesk.sln --locked-mode
+      - name: Run the same integration tests against SQL Server migrations
+        run: dotnet test --solution HelpDesk.sln -c Release --no-restore --results-directory TestResults -- --report-trx
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sqlserver-test-results
+          path: TestResults
+      - name: SQL Server diagnostics
+        if: failure()
+        run: docker logs helpdesk-sql
+      - name: Stop SQL Server
+        if: always()
+        run: docker rm -f helpdesk-sql

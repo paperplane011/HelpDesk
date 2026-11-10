@@ -1,0 +1,78 @@
+@baseUrl = http://localhost:5080
+# Fill locally. Do not commit real passwords or tokens.
+@password = REPLACE_LOCALLY
+@token = REPLACE_LOCALLY
+@ticketId = REPLACE_LOCALLY
+@version = REPLACE_LOCALLY_WITH_CURRENT_VERSION
+
+### Register a new user
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{"email":"new-user@example.test","password":"{{password}}"}
+
+### Login; copy accessToken into @token
+POST {{baseUrl}}/api/auth/login?useCookies=false
+Content-Type: application/json
+
+{"email":"alice@example.test","password":"{{password}}"}
+
+### List visible tickets
+GET {{baseUrl}}/api/tickets?status=Open&priority=High&sortBy=CreatedAt&descending=true&page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Create; copy id and version from response
+POST {{baseUrl}}/api/tickets
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title":"VPN недоступен","description":"Ошибка после смены пароля","priority":"High"}
+
+### Read latest version
+GET {{baseUrl}}/api/tickets/{{ticketId}}
+Authorization: Bearer {{token}}
+
+### Edit; copy new version from every successful response
+PUT {{baseUrl}}/api/tickets/{{ticketId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title":"VPN: ошибка авторизации","description":"Новый пароль не принимается","priority":"Critical","version":"{{version}}"}
+
+### Take as Support (login as support@example.test first)
+POST {{baseUrl}}/api/tickets/{{ticketId}}/take
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"version":"{{version}}"}
+
+### Add comment; response is a ticket with NEW version
+POST {{baseUrl}}/api/tickets/{{ticketId}}/comments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"body":"Синхронизация пароля выполнена. Проверьте подключение.","version":"{{version}}"}
+
+### Comments
+GET {{baseUrl}}/api/tickets/{{ticketId}}/comments?page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Close as assigned Support
+POST {{baseUrl}}/api/tickets/{{ticketId}}/close
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"version":"{{version}}"}
+
+### Reopen as owner or Support
+POST {{baseUrl}}/api/tickets/{{ticketId}}/reopen
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"version":"{{version}}"}
+
+### Refresh (replace placeholder locally)
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: application/json
+
+{"refreshToken":"REPLACE_LOCALLY"}
